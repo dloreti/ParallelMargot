@@ -175,9 +175,9 @@ object StreamingMargot {
     val DEBUG: Boolean = if (args.length>9 && args(9)=="debug") true else false
 
 
+    /***********************************/
+    
     Logger.getLogger("org").setLevel(Level.ERROR)
-
-
 
     val sparkConf = new SparkConf().setAppName("StreamingMargot")
     sparkConf.set("spark.shuffle.blockTransferService", "nio")
@@ -188,7 +188,7 @@ object StreamingMargot {
     ssc.addStreamingListener(new MyListener)
 
 
-    //***** JOB INIT *****
+    /***** JOB INIT *****/
     val lp = LexicalizedParser.loadModel("edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz")
     lp.setOptionFlags("-outputFormatOptions", "stem", "-retainTmpSubcategories","-outputFormat", "words,oneline")
     val dmStemmed = new DictionaryManager
@@ -222,7 +222,8 @@ object StreamingMargot {
         var myList1: List[(String, SentenceDetail)] = List()
         if (myList.size!=0){
 
-          //THIRD-PARTY SOFTWARE TO DETECT CLAIMS
+          /******THIRD_PARTY SOFTWARE TO DETECT CLAIMS******/
+
           val pb_claim = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0", claim_model_path)
           val proc_claim = pb_claim.start
@@ -238,7 +239,8 @@ object StreamingMargot {
             }.start()
           }
 
-          //THIRD-PARTY SOFTWARE TO DETECT EVIDENCES
+          /******THIRD_PARTY SOFTWARE TO DETECT EVIDENCE******/
+
           val pb_evidence = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0", evidence_model_path)
           val proc_evidence = pb_evidence.start
@@ -376,7 +378,8 @@ object StreamingMargot {
       var myList1 : List[(String, LinkDetail)] = List()
 
       if (myList.size!=0) {
-        //THIRD-PARTY SOFTWARE TO PREDICT LINKS (CLAIM <-> EVIDENCE)
+
+        /******THIRD_PARTY SOFTWARE TO PREDICT CLAIM-EVIDENCE LINKS******/
         val pb_link = new java.lang.ProcessBuilder(svm_classify_path,
           "-v", "0", link_model_path)
         val proc_link: java.lang.Process = pb_link.start

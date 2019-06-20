@@ -28,6 +28,7 @@ object BatchMargot {
         "[debug/run] : optional, prints control logs\n")
       System.exit(1)
     }
+
     /******** INPUT PARAMETERS *********/
 
     val inputDir = args(0)
@@ -42,10 +43,12 @@ object BatchMargot {
     val repar: Integer = Integer.parseInt(args(5).split("=")(1))
     val DEBUG: Boolean = if (args.length > 6 && args(6) == "debug") true else false
 
+    /***********************************/
+
+
     Logger.getLogger("org").setLevel(Level.ERROR)
 
     val sparkConf = new SparkConf().setAppName("BatchMargot")
-      //.setMaster("spark://12.8.0.54:7077")
       .set("spark.hadoop.textinputformat.record.delimiter", ".")
       .set("spark.hadoop.validateOutputSpecs", "false")
       .set("spark.extraListeners", "spark.examples.CustomSparkListener")
@@ -53,6 +56,7 @@ object BatchMargot {
     val sc = new SparkContext(sparkConf)
 
 
+    /***** JOB INIT *****/
     val lp = LexicalizedParser.loadModel("edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz")
     lp.setOptionFlags("-outputFormatOptions", "stem", "-retainTmpSubcategories", "-outputFormat", "words,oneline")
     val dmStemmed = new DictionaryManager
@@ -63,6 +67,7 @@ object BatchMargot {
 
     println("Input Folder: " + inputDir)
 
+    /******BATCH PROCESSING CORE********/
 
     var phrases = sc
       .wholeTextFiles(inputDir).filter(x => !x._1.contains("DS_Store"))
@@ -104,7 +109,8 @@ object BatchMargot {
           val myList = iterator.toList
           println("\n\n*** 1st PH. Thr:"+Thread.currentThread().getId+" Called in Partition -> " + index + " sentences: "+myList.size)
 
-          //THIRD_PARTY SOFTWARE TO DETECT CLAIMS
+          /******THIRD_PARTY SOFTWARE TO DETECT CLAIMS******/
+
           val pb_claim = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0",claim_model_path)
           val proc_claim = pb_claim.start
@@ -123,7 +129,7 @@ object BatchMargot {
             }.start()
           }
 
-          //THIRD_PARTY SOFTWARE TO DETECT EVIDENCES
+          /******THIRD_PARTY SOFTWARE TO DETECT EVIDENCE******/
           val pb_evidence = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0",evidence_model_path)
           val proc_evidence = pb_evidence.start
@@ -205,7 +211,8 @@ object BatchMargot {
       println("\n\n*** 2nd PH. Thr: "+Thread.currentThread().getId+" Called in Partition -> " + index )//+ "\n" + iterator.mkString("\n"))
       val myList = iterator.toList
 
-      //THIRD_PARTY SOFTWARE TO PREDICT LINKS (CLAIM <-> EVIDENCE)
+        /******THIRD_PARTY SOFTWARE TO PREDICT CLAIM-EVIDENCE LINKS******/
+
       val pb_link = new java.lang.ProcessBuilder(svm_classify_path,
         "-v", "0",link_model_path)
       val proc_link: java.lang.Process = pb_link.start
