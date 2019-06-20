@@ -32,7 +32,7 @@ object BatchMargot {
     /******** INPUT PARAMETERS *********/
 
     val inputDir = args(0)
-    val stemmedDictionariesDirectory: String = args(1)+"/dict/sentencedetection/sdm
+    val stemmedDictionariesDirectory: String = args(1)+"/dict/sentencedetection/sdm"
     val claim_model_path: String = args(1) + "/models/model.claim.detection"
     val evidence_model_path: String = args(1) + "/models/model.evidence.detection"
     val link_model_path: String = args(1) +"/models/model_structure_prediction3.svm"

@@ -77,7 +77,7 @@ object StreamingMargot {
     var myList1 : List[(String, ((String, String, Double, Double), (String, String, Double, Double)),Double)] = List()
 
     if (myList.size!=0) {
-      println("\n\n*** 2nd PH. Thr: " + Thread.currentThread().getId()) //+ "\n" + iterator.mkString("\n"))
+      println("\n\n*** 2nd PH. Thr: " + Thread.currentThread().getId())
 
       //SEPARATE PROCESS TO PREDICT LINKS CLAIM -> EVIDENCE
       val pb_link = new java.lang.ProcessBuilder(svm_classify_path,
@@ -163,7 +163,7 @@ object StreamingMargot {
     val claim_model_path : String  = args(2)+"/models/model.claim.detection"
     val evidence_model_path : String = args(2)+"/models/model.evidence.detection"
     val link_model_path : String = args(2)+"/models/model_structure_prediction3.svm"
-    val svm_classify_path : String = args(2)  //+"/SVM-Light/svm_classify"
+    val svm_classify_path : String = args(2)  +"/SVM-Light/svm_classify"
 
     val checkpoint : String = args(3)
     val ecThr : Double = java.lang.Double.parseDouble(args(4).split("=")(1))
@@ -176,7 +176,7 @@ object StreamingMargot {
 
 
     /***********************************/
-    
+
     Logger.getLogger("org").setLevel(Level.ERROR)
 
     val sparkConf = new SparkConf().setAppName("StreamingMargot")
