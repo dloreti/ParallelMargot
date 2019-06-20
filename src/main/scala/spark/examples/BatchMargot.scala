@@ -15,29 +15,17 @@ import util.control.Breaks._
 
 object BatchMargot {
 
-  //val stemmedDictionariesDirectory = "/Users/daniela/Drive/ALMA-Drive/wss/IdeaProjects/ParallelMargot/dict/sentencedetection/sdm"
-
-
-
-  //val in : Scanner= null
-  //val out : PrintWriter= null
-
-
-
-  /**
-    * run as follows:
-    * ssh -i /Users/daniela/Dropbox/ALMA-Dropbox/RICERCA/TOOLS/2018-02-pike-ip236/k-dani.priv ubuntu@12.8.0.78
-    * ubuntu@parallelmargot-master-medium-0:~$ ./code/echoBs.sh 1000 Weapons-cleaned.txt | tee /dev/tty| nc -lk 9999
-    * run from IntelliJ IDEA with arguments: 12.8.0.78 9999 testpath 1000 debug
-    *
-    */
-
   def main(args: Array[String]) {
-    if (args.length < 7) {
+    if (args.length < 6) {
       System.err.println("Usage: BatchMargot <inputDir> <pmDir> <outputFile> " +
         "ecThr=<evid-claim-threshold> lThr=<link-threshold> repar=<repar> [debug/run]\n\n" +
         "inputDir : file system or HDFS path\n" +
-        "pmDir : path to ParallelMargot directory")
+        "pmDir : path to ParallelMargot directory\n" +
+        "outputFile : output file\n" +
+        "ecThr : score threshold for evidence and claim classification, typically 0\n" +
+        "lThr : score threshold for link classification, typically 0\n" +
+        "repar : force the distributed system to create a certin number of partitions\n" +
+        "[debug/run] : optional, prints control logs\n")
       System.exit(1)
     }
     /******** INPUT PARAMETERS *********/
@@ -52,8 +40,7 @@ object BatchMargot {
     val ecThr: Double = java.lang.Double.parseDouble(args(3).split("=")(1))
     val lThr: Double = java.lang.Double.parseDouble(args(4).split("=")(1))
     val repar: Integer = Integer.parseInt(args(5).split("=")(1))
-    val LRF: Integer = Integer.parseInt(args(6).split("=")(1)) //LINK REPARTITION FACTOR
-    val DEBUG: Boolean = if (args.length > 7 && args(7) == "debug") true else false
+    val DEBUG: Boolean = if (args.length > 6 && args(6) == "debug") true else false
 
     Logger.getLogger("org").setLevel(Level.ERROR)
 
@@ -117,7 +104,7 @@ object BatchMargot {
           val myList = iterator.toList
           println("\n\n*** 1st PH. Thr:"+Thread.currentThread().getId+" Called in Partition -> " + index + " sentences: "+myList.size)
 
-          //SEPARATE PROCESS TO DETECT CLAIMS
+          //THIRD_PARTY SOFTWARE TO DETECT CLAIMS
           val pb_claim = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0",claim_model_path)
           val proc_claim = pb_claim.start
@@ -136,7 +123,7 @@ object BatchMargot {
             }.start()
           }
 
-          //SEPARATE PROCESS TO DETECT EVIDENCES
+          //THIRD_PARTY SOFTWARE TO DETECT EVIDENCES
           val pb_evidence = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0",evidence_model_path)
           val proc_evidence = pb_evidence.start
@@ -160,7 +147,6 @@ object BatchMargot {
             val theTree = x._2._2
             val theFv = x._2._3
             val input_svm = "0  |BT| " + theTree + " |ET|\t" + theFv + " |EV|\n"
-            //println(input_svm)
             //CLAIM and EVIDENCE print on stdin:
             out_claim.print(input_svm)
             out_claim.flush()
@@ -188,7 +174,6 @@ object BatchMargot {
           myList1.iterator
         }
       )
-    //out.foreach(x => println("\n"+x._2._1 + "\nFV: "+x._2._2 + "\nCS:"+x._2._3+"\nES:"+x._2._4))
 
     out.name="*******out"
     out.cache
@@ -199,7 +184,7 @@ object BatchMargot {
       .map(x => {
         val a = x._2._2.split(" ").map( el =>{
           val arr = el.split(":")
-          val idx =Integer.parseInt(arr(0)) + 49794 //49586
+          val idx =Integer.parseInt(arr(0)) + 49794
           idx.toString+":"+arr(1)
         }).mkString(" ")
 
@@ -211,17 +196,8 @@ object BatchMargot {
     evidences.name="*evidences"
     evidences.cache
     println("\nCLAIMS ARE: "+claims.count())
-    println("\nEVIDEN ARE: "+evidences.count())   //end of stage 3
-    //claims.collect.foreach(x=>println("C:"+x._2._1))
-    //evidences.collect.foreach(x=>println("E:"+x._2._1))
-    //out.unpersist()
-
-    //val pairs = claims.cartesian(evidences).filter{ case (a,b) => a._1 == b._1 && a._2 != b._2 }.coalesce(repar)
-    var pairs = claims.join(evidences,repar*LRF).filter{ x => x._2._1._1 != x._2._2._1}
-    //x: (File, ((sentence, FV, r-claim, r-evid), (sentence, FV, r-claim, r-evid)))
-    //if (repar!=0)
-    //pairs=pairs.coalesce(repar)
-    //println("***** PAIRS PARTITIONS ARE: "+ pairs.partitions.size)
+    println("\nEVIDEN ARE: "+evidences.count())
+    var pairs = claims.join(evidences,repar).filter{ x => x._2._1._1 != x._2._2._1}
 
     val links = pairs
       .mapPartitionsWithIndex(
@@ -229,7 +205,7 @@ object BatchMargot {
       println("\n\n*** 2nd PH. Thr: "+Thread.currentThread().getId+" Called in Partition -> " + index )//+ "\n" + iterator.mkString("\n"))
       val myList = iterator.toList
 
-      //SEPARATE PROCESS TO PREDICT LINKS CLAIM -> EVIDENCE
+      //THIRD_PARTY SOFTWARE TO PREDICT LINKS (CLAIM <-> EVIDENCE)
       val pb_link = new java.lang.ProcessBuilder(svm_classify_path,
         "-v", "0",link_model_path)
       val proc_link: java.lang.Process = pb_link.start
@@ -249,9 +225,6 @@ object BatchMargot {
       myList.foreach( x => {
         val c = x._2._1
         val e = x._2._2
-        /*println("*** Thr:"+Thread.currentThread().getId()+ " call svm_classify for link between " +
-          "c="+c._1.substring(0,(if (c._1.length < 10) c._1.length else 10))+
-          " and e="+e._1.substring(0,(if (e._1.length < 10) e._1.length else 10)) )*/
         val input_svm = "1  " + c._2 + " " + e._2  + " \n"
         //LINK:
         out_link.print(input_svm)
@@ -268,25 +241,17 @@ object BatchMargot {
           myList1 = (x._1, ("CLAIM:" + c._1, "EVID:" + e._1), r_link) :: myList1
         }
       })
-      //println("PARTITION "+index+": CALL FOR LINK DETECTION ENDED")
         out_link.close()
         in_link.close()
       myList1.iterator
     })
       .filter(_._3>lThr)
     links.name = "*****links"
-    //links.cache
-    //links.coalesce(1,true).saveAsTextFile(outputFile)
-      /*.collect() //.take(10)
-      .foreach(x => println("******* FILE: "+x._1+
-        "\nCLAIM: "     + x._2._1 +
-        "\nEVIDENCE: "  + x._2._2 +
-        "\n LINK SCORE: "+x._3+"\n") )*/
+    links.coalesce(1,true).saveAsTextFile(outputFile)
+
     println("\nLINKS ARE: "+links.count())
 
     sc.getRDDStorageInfo.foreach(x => println(x))
-
-   // while(true){}
   }
 
 

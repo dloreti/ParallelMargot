@@ -29,14 +29,13 @@ class SentenceDetail(var sentence : String,
   override def toString: String = {
     var endS = if (sentence.length>=10) 9 else sentence.length
     val endF = if (FV.length>=10) 9 else FV.length
-    return sentence.substring(0,endS) //+" FV:"+FV.substring(0,endF)+" cs:"+c_score+" es:"+e_score
+    return sentence.substring(0,endS)
   }
 }
 class LinkDetail(var claim : String,
                  var evidence : String,
                  var l_score : Double) extends java.io.Serializable{
   override def toString: String = {
-    //return "C:"+claim+" E:"+evidence+ " ***ls:"+l_score
     return "C:"+claim.substring(0,if (claim.length>=10) 9 else claim.length)+
       " E:"+evidence.substring(0,if (evidence.length>=10) 9 else evidence.length)+
       " ***ls:"+l_score
@@ -45,8 +44,6 @@ class LinkDetail(var claim : String,
 
 object StreamingMargot {
 
-  /*
-  * \n replacing and trim should be performed afterwards!! */
   val bytesToPhrases = (inputStream : InputStream) => {
     val dataInputStream = new BufferedReader(new InputStreamReader(  inputStream , "UTF-8"))
     new PhraseNextIterator[(String,String)] {
@@ -58,7 +55,7 @@ object StreamingMargot {
           phrase.append(ch)
           ch = dataInputStream.read().toChar
         }
-        var nextValue = phrase.mkString //.trim
+        var nextValue = phrase.mkString
         if (nextValue == null) {
           finished = true
           nextValue
@@ -92,7 +89,6 @@ object StreamingMargot {
       if (DEBUG) {
         new Thread() {
           override def run(): Unit = {
-            //System.err.println("ERR: Debugging thread ERROR started")
             while (err_link.hasNextLine) System.err.println("ERR:" + err_link.nextLine)
           }
         }.start()
@@ -102,9 +98,6 @@ object StreamingMargot {
       myList.foreach(x => {
         val c = x._2._1
         val e = x._2._2
-        /*println("*** Thr:"+Thread.currentThread().getId()+ " call svm_classify for link between " +
-          "c="+c._1.substring(0,(if (c._1.length < 10) c._1.length else 10))+
-          " and e="+e._1.substring(0,(if (e._1.length < 10) e._1.length else 10)) )*/
         var input_svm = "1  " + c._2 + " " + e._2 + " \n"
         //LINK:
         out_link.print(input_svm)
@@ -141,43 +134,45 @@ object StreamingMargot {
       }
     }
   } : Option[Seq[SentenceDetail]]
-  /**
-    * run as follows:
-    * ssh -i /Users/daniela/Dropbox/ALMA-Dropbox/RICERCA/TOOLS/2018-02-pike-ip236/k-dani.priv ubuntu@12.8.0.78
-    * ubuntu@parallelmargot-master-medium-0:~$ ./code/echoBs.sh 1000 Weapons-cleaned.txt | tee /dev/tty| nc -lk 9999
-    * run from IntelliJ IDEA with arguments: 12.8.0.78 9999 testpath 1000 debug
-    *
-    */
+
+
 
   def main(args: Array[String]) {
-    if (args.length < 4) {
-      /*System.err.println("Usage: ParallelMargot <hostname> <port> <svm_bin_path> <swipl_path> <batchms> <repartitions>" +
-                                                " <subtraceCompleteCheck[true/false]> <model_id> <nTraces> [debug/run]")*/
-      System.err.println("Usage!")//: StreamingMargot <hostname> <port> <svm_bin_path> <batchms> [debug/run]")
+    if (args.length < 9) {
+      System.err.println("Usage: BatchMargot <hostname> <port> <pmDir> <checkpoint>" +
+        "ecThr=<evid-claim-threshold> lThr=<link-threshold> repar=<repar> " +
+        "<batchs> <winMultiplier>[debug/run]\n\n" +
+
+        "hostname : hostname of the server sending text \n" +
+        "port : port of the server sending text \n" +
+        "pmDir : path to ParallelMargot directory\n" +
+        "checkpoint : checkpoint directory\n" +
+        "ecThr : score threshold for evidence and claim classification, typically 0\n" +
+        "lThr : score threshold for link classification, typically 0\n" +
+        "repar : force the distributed system to create a certin number of partitions\n" +
+        "batchs : microbatch period\n" +
+        "winMultiplier : dimension of the join window. 0 for no window\n" +
+        "[debug/run] : optional, prints control logs\n")
       System.exit(1)
     }
-    /******** LETTURA PARAMETRI *********/
+    /******** INPUT PARAMETERS *********/
     val hostname = args(0)
     val port : Int= args(1).toInt
     val stemmedDictionariesDirectory : String = args(2)+"/dict/sentencedetection/sdm"
 
-
     val claim_model_path : String  = args(2)+"/models/model.claim.detection"
     val evidence_model_path : String = args(2)+"/models/model.evidence.detection"
-    val link_model_path : String = args(3) //+"/models/model_structure_prediction3.svm"
-    val svm_classify_path : String = args(4)  //+"/SVM-Light-1.5-to-be-released/svm_classify"
-    val checkpoint : String = args(5)
+    val link_model_path : String = args(2)+"/models/model_structure_prediction3.svm"
+    val svm_classify_path : String = args(2)  //+"/SVM-Light/svm_classify"
 
-    val ecThr : Double = java.lang.Double.parseDouble(args(6).split("=")(1))
-    val lThr : Double = java.lang.Double.parseDouble(args(7).split("=")(1))
-    val repar : Int = args(8).split("=")(1).toInt
-    val batchs : Int= args(9).split("=")(1).toInt
-    val winMultiplier : Int = args(10).split("=")(1).toInt
+    val checkpoint : String = args(3)
+    val ecThr : Double = java.lang.Double.parseDouble(args(4).split("=")(1))
+    val lThr : Double = java.lang.Double.parseDouble(args(5).split("=")(1))
+    val repar : Int = args(6).split("=")(1).toInt
+    val batchs : Int= args(7).split("=")(1).toInt
+    val winMultiplier : Int = args(8).split("=")(1).toInt
 
-    val DEBUG: Boolean = if (args.length>11 && args(11)=="debug") true else false
-    println("debug = "+DEBUG)
-    println("repar = "+repar)
-    println("batchs = "+batchs)
+    val DEBUG: Boolean = if (args.length>9 && args(9)=="debug") true else false
 
 
     Logger.getLogger("org").setLevel(Level.ERROR)
@@ -198,14 +193,11 @@ object StreamingMargot {
     lp.setOptionFlags("-outputFormatOptions", "stem", "-retainTmpSubcategories","-outputFormat", "words,oneline")
     val dmStemmed = new DictionaryManager
     dmStemmed.loadFromTextFiles(stemmedDictionariesDirectory)
-    //ssc.sparkContext.broadcast(lp)
-    //ssc.sparkContext.broadcast(dmStemmed)
 
 
     var phrases1 = ssc
       .socketStream(hostname, port, bytesToPhrases, StorageLevel.MEMORY_ONLY_SER)
       .mapValues(x => x.trim)
-      //.filter(_._2!=".")
       .filter(_._2.length > 5)
     if (repar!=0) {
       phrases1 = phrases1.repartition(repar)
@@ -214,10 +206,9 @@ object StreamingMargot {
       })
     }
 
-    //.mapValues(sentence => {sentence.trim().replace("\n", " ")})
     val phrases =  phrases1.mapValues( x => {
       val tokenizerFactory = PTBTokenizer.factory(new CoreLabelTokenFactory(), "")
-      val tree = lp.apply(tokenizerFactory.getTokenizer(new StringReader(x + ".")).tokenize())  //x already has .?!
+      val tree = lp.apply(tokenizerFactory.getTokenizer(new StringReader(x + ".")).tokenize())
       new WordStemmer().visitTree(tree) // apply the stemmer to the tree
 
       val sw = new StringWriter
@@ -230,9 +221,8 @@ object StreamingMargot {
         val myList = iterator.toList
         var myList1: List[(String, SentenceDetail)] = List()
         if (myList.size!=0){
-          //println("\n\n*** 1st PH. Thr:" + Thread.currentThread().getId) //+ "\n" + iterator.mkString("\n"))
 
-          //SEPARATE PROCESS TO DETECT CLAIMS
+          //THIRD-PARTY SOFTWARE TO DETECT CLAIMS
           val pb_claim = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0", claim_model_path)
           val proc_claim = pb_claim.start
@@ -243,13 +233,12 @@ object StreamingMargot {
             val err_claim = new Scanner(proc_claim.getErrorStream) //read from svm_classify stderr
             new Thread() {
               override def run(): Unit = {
-                //System.err.println("ERR: Debugging thread ERROR started")
                 while ( err_claim.hasNextLine) System.err.println("ERR:" + err_claim.nextLine)
               }
             }.start()
           }
 
-          //SEPARATE PROCESS TO DETECT EVIDENCES
+          //THIRD-PARTY SOFTWARE TO DETECT EVIDENCES
           val pb_evidence = new java.lang.ProcessBuilder(svm_classify_path,
             "-v", "0", evidence_model_path)
           val proc_evidence = pb_evidence.start
@@ -260,20 +249,16 @@ object StreamingMargot {
             val err_evidence = new Scanner(proc_evidence.getErrorStream) //read from svm_classify stderr
             new Thread() {
               override def run(): Unit = {
-                //System.err.println("ERR: Debugging thread ERROR started")
                 while (err_evidence.hasNextLine) System.err.println("ERR:" + err_evidence.nextLine)
               }
             }.start()
           }
 
-          //var myList1: List[(String, (String, String, Double, Double))] = List()
           myList.foreach(x => {
             val end=if (x._2._1.length < 10) x._2._1.length else 10
-            //println("*** 1st PH. Thr:"+Thread.currentThread().getId()+ " call svm_classify on sentence="+x._2._1.substring(0,end))
             var theTree = x._2._2
             var theFv = x._2._3
             var input_svm = "0  |BT| " + theTree + " |ET|\t" + theFv + " |EV|\n"
-            //println(input_svm)
             //CLAIM and EVIDENCE print on stdin:
             out_claim.print(input_svm)
             out_claim.flush()
@@ -282,9 +267,6 @@ object StreamingMargot {
             //CLAIM and EVIDENCE score read from stdout :
             var r_claim: Double = 0
             var r_evidence: Double = 0
-            //if (in_claim.hasNextLine) r_claim = in_claim.nextLine().toDouble
-            //if (in_evidence.hasNextLine) r_evidence = in_evidence.nextLine().toDouble
-            //myList1 = (x._1, new SentenceDetail(x._2._1, theFv, r_claim, r_evidence)) :: myList1
             breakable {
               try {
                 if (in_claim.hasNextLine) r_claim = in_claim.nextLine().toDouble
@@ -324,7 +306,7 @@ object StreamingMargot {
       .map(x => {
         x._2.FV = x._2.FV.split(" ").map( el =>{
           val arr = el.split(":")
-          val idx = Integer.parseInt(arr(0)) + 49794 //49586
+          val idx = Integer.parseInt(arr(0)) + 49794
           idx.toString+":"+arr(1)
         }).mkString(" ")
         x
@@ -361,74 +343,13 @@ object StreamingMargot {
     var pair :  DStream[(String, (SentenceDetail, SentenceDetail))] = null
 
     if (winMultiplier!=0){
-      /*claims= claims.window(Seconds(batchs*winMultiplier))
-      evidences=evidences.window(Seconds(batchs*winMultiplier))
-      pair = claims.join(evidences)*/
       pair = claims.window(Seconds(batchs*winMultiplier)).join(evidences.window(Seconds(batchs*winMultiplier)))
     }else{
-      /*var claimsColl : DStream[(String, SentenceDetail)] = null
-      var evidColl : DStream[(String, SentenceDetail)] = null
-      if (claimsColl!=null)
-        pair=claims.join(evidColl).union(claimsColl.join(evidences)).union(claims.join(evidences))
-      else
-        pair=claims.join(evidences)
-      claimsColl = claims
-        .updateStateByKey(updateClaimColl).flatMapValues( x => {x.iterator} )
-      evidColl = evidences
-        .updateStateByKey(updateEvidColl).flatMapValues( x => {x.iterator} )*/
       val claimsColl = claims
-        .updateStateByKey(updateClaimColl).flatMapValues( x => {x.iterator} )
+        .updateStateByKey(updateClaimColl)
+        .flatMapValues( x => {x.iterator} )
       pair=claimsColl.join(evidences)
     }
-
-
-    /*
-        val claimsColl = claims
-          .updateStateByKey(updateClaimColl)
-          .flatMap( x =>{x._2.map( el => (x._1,el))})
-        /*.flatMapValues(cList=>{
-          cList.iterator
-        })
-        .mapWithState(StateSpec.function((key: String, value: Option[SentenceDetail], state: State[Iterator[SentenceDetail]]) => {
-        val coll =  state.getOption.getOrElse(Iterator()) ++ Iterator(value.getOrElse(null))
-        val output = (key, coll)
-        state.update(coll)
-        output
-      }))
-        .flatMap( x =>{x._2.map( cl => (x._1,cl))})*/
-        claimsColl.foreachRDD(rdd =>{
-          rdd.foreach(el => {
-            println("FN:" + el._1 + " -> CLAIM : " + el._2)
-          })
-        })
-
-        val evidColl = evidences
-          .updateStateByKey(updateEvidColl)
-          .flatMap( x =>{x._2.map( el => (x._1,el))})
-          /*.mapWithState(StateSpec.function((key: String, value: Option[SentenceDetail], state: State[Iterator[SentenceDetail]]) => {
-            val coll = state.getOption.getOrElse(Iterator()) ++ Iterator(value.getOrElse(null))
-            val output = (key, value)
-            state.update(coll)
-            output}))
-          .flatMap( x =>{x._2.map( ev => (x._1,ev))})*/
-        evidColl.foreachRDD(rdd => rdd.foreach(el => {
-          println("FN:" + el._1 + " -> EVID : " + el._2)
-        }))
-
-
-        val pair1 = claims //combine each claim in the current batch with all the past evidences
-          .join(evidColl)
-        val pair2 = evidences //combine each evidence in the current batch with all the past claims
-          .join(claimsColl).mapValues(a => (a._2,a._1))
-        val pair3 = claims
-          .join(evidences)
-        var pair = pair1
-          .union(pair2)
-          //.union(pair3)
-            .transform(rdd => rdd.distinct())
-        */
-
-
 
     if (DEBUG) {
       pair.foreachRDD(rdd => rdd.foreach(el => {
@@ -455,9 +376,7 @@ object StreamingMargot {
       var myList1 : List[(String, LinkDetail)] = List()
 
       if (myList.size!=0) {
-        //println("\n\n*** 2nd PH. Thr: " + Thread.currentThread().getId())
-
-        //SEPARATE PROCESS TO PREDICT LINKS CLAIM -> EVIDENCE
+        //THIRD-PARTY SOFTWARE TO PREDICT LINKS (CLAIM <-> EVIDENCE)
         val pb_link = new java.lang.ProcessBuilder(svm_classify_path,
           "-v", "0", link_model_path)
         val proc_link: java.lang.Process = pb_link.start
@@ -467,7 +386,6 @@ object StreamingMargot {
         if (DEBUG) {
           new Thread() {
             override def run(): Unit = {
-              //System.err.println("ERR: Debugging thread ERROR started")
               while (err_link.hasNextLine) System.err.println("ERR:" + err_link.nextLine)
             }
           }.start()
@@ -477,9 +395,6 @@ object StreamingMargot {
         myList.foreach(x => {
           val c = x._2._1
           val e = x._2._2
-          /*println("*** Thr:"+Thread.currentThread().getId()+ " call svm_classify for link between " +
-            "c="+c._1.substring(0,(if (c._1.length < 10) c._1.length else 10))+
-            " and e="+e._1.substring(0,(if (e._1.length < 10) e._1.length else 10)) )*/
           if (c.sentence!=e.sentence) {
             var input_svm = "1  " + c.FV + " " + e.FV + " \n"
             //LINK:
@@ -498,24 +413,22 @@ object StreamingMargot {
     })
       .filter(_._2.l_score>lThr)
 
-    //if (DEBUG) {
-      links
-        .map(el => (el._1, 1))
-        .mapWithState(StateSpec.function((key: String, value: Option[Int], state: State[Long]) => {
-          val sum = value.getOrElse(0).toLong + state.getOption.getOrElse(0L)
-          val output = (key, sum)
-          state.update(sum)
-          output
-        }))
-        .reduceByKey(math.max(_,_))
-        .foreachRDD(rdd => rdd.collect().foreach(el => {
-          println("\nIn FN:" + el._1 + " there are " + el._2+ " LINKS")
-        }))
-    //}
+
+    links
+      .map(el => (el._1, 1))
+      .mapWithState(StateSpec.function((key: String, value: Option[Int], state: State[Long]) => {
+        val sum = value.getOrElse(0).toLong + state.getOption.getOrElse(0L)
+        val output = (key, sum)
+        state.update(sum)
+        output
+      }))
+      .reduceByKey(math.max(_,_))
+      .foreachRDD(rdd => rdd.collect().foreach(el => {
+        println("\nIn FN:" + el._1 + " there are " + el._2+ " LINKS")
+      }))
 
 
 
-    //links.print(10)
     links.foreachRDD(rdd =>{
       rdd.collect().foreach(el => println("In FN:" + el._1 + " -> LINK : " + el._2)
       )})
